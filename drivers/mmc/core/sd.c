@@ -256,6 +256,29 @@ static int mmc_read_ssr(struct mmc_card *card)
 		es = UNSTUFF_BITS(ssr, 408 - 384, 16);
 		et = UNSTUFF_BITS(ssr, 402 - 384, 6);
 		eo = UNSTUFF_BITS(ssr, 400 - 384, 2);
+
+		#ifdef CONFIG_MACH_LGE
+		/*           
+                                
+                                                      
+                                  
+   */
+		{
+			unsigned int speed_class_ssr = 0;
+
+			speed_class_ssr = UNSTUFF_BITS(ssr, 440 - 384, 8);
+			if (speed_class_ssr < 5) {
+                pr_info("[LGE][MMC][%-18s( )] mmc_hostname:%s, %u ==> SPEED_CLASS %s%s%s%s%s\n", __func__, mmc_hostname(card->host), speed_class_ssr,
+				((speed_class_ssr == 4) ? "10" : ""),
+				((speed_class_ssr == 3) ? "6" : ""),
+				((speed_class_ssr == 2) ? "4" : ""),
+				((speed_class_ssr == 1) ? "2" : ""),
+				((speed_class_ssr == 0) ? "0" : ""));
+			} else
+                pr_info("[LGE][MMC][%-18s( )] mmc_hostname:%s, Unknown SPEED_CLASS\n", __func__, mmc_hostname(card->host));
+		}
+		#endif
+
 		if (es && et) {
 			card->ssr.erase_timeout = (et * 1000) / es;
 			card->ssr.erase_offset = eo * 1000;
@@ -851,6 +874,7 @@ try_again:
 	   ((*rocr & 0x41000000) == 0x41000000)) {
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180, true);
 		if (err) {
+			mmc_power_cycle(host);
 			ocr &= ~SD_OCR_S18R;
 			goto try_again;
 		}
@@ -920,15 +944,15 @@ int mmc_sd_setup_card(struct mmc_host *host, struct mmc_card *card,
 			err = mmc_read_switch(card);
 			if (!err) {
 				if (retries > 1) {
-					printk(KERN_WARNING
-					       "%s: recovered\n", 
-					       mmc_hostname(host));
+                    printk(KERN_WARNING
+                            "%s: recovered\n",
+                            mmc_hostname(host));
 				}
 				break;
 			} else {
-				printk(KERN_WARNING
-				       "%s: read switch failed (attempt %d)\n",
-				       mmc_hostname(host), retries);
+                    printk(KERN_WARNING
+                            "%s: read switch failed (attempt %d)\n",
+                            mmc_hostname(host), retries);
 			}
 		}
 #else
@@ -1014,9 +1038,12 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	WARN_ON(!host->claimed);
 
 	#ifdef CONFIG_MACH_LGE
-	if(host->index == 2 && !mmc_cd_get_status(host))
-	{
-		printk(KERN_INFO "[LGE][MMC][%-18s( )] sd-no-exist. skip next\n", __func__);
+	/*           
+                                                        
+                                 
+  */
+	if (!mmc_cd_get_status(host)) {
+        pr_info("[LGE][MMC][%-18s( )] sd-no-exist. skip next\n", __func__);
 		err = -ENOMEDIUM;
 		return err;
 	}
@@ -1140,11 +1167,11 @@ static void mmc_sd_remove(struct mmc_host *host)
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
+	mmc_exit_clk_scaling(host);
 	mmc_remove_card(host->card);
 
 	mmc_claim_host(host);
 	host->card = NULL;
-	mmc_exit_clk_scaling(host);
 	mmc_release_host(host);
 }
 
@@ -1153,15 +1180,7 @@ static void mmc_sd_remove(struct mmc_host *host)
  */
 static int mmc_sd_alive(struct mmc_host *host)
 {
-#ifdef CONFIG_MACH_LGE
-	/* LGE_UPDATE, 2013/07/19, G2-FS@lge.com
-	 * When checking whether sd exists or not, using CMD13 is not good.
-	 * It can be async-status between cd-gpio and result of CMD13 according to sd-slot-structure.
-	 */
-	return !mmc_cd_get_status(host);
-#else
 	return mmc_send_status(host->card, NULL);
-#endif
 }
 
 /*
@@ -1170,11 +1189,12 @@ static int mmc_sd_alive(struct mmc_host *host)
 static void mmc_sd_detect(struct mmc_host *host)
 {
 	int err = 0;
+#ifdef CONFIG_MACH_LGE
+	/*           
+                              
+                                 
+  */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
-#ifndef CONFIG_MACH_LGE
-	/* LGE_UPDATE, 2013/07/19, G2-FS@lge.com
-	 * for fixing compile-warning
-	 */
         int retries = 5;
 #endif
 #endif
@@ -1189,19 +1209,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 * Just check if our card has been removed.
 	 */
 
-#ifdef CONFIG_MACH_LGE
-	/* LGE_UPDATE, 2013/07/19, G2-FS@lge.com
-	 * When checking whether sd exists or not, using CMD13 is not good.
-	 * It can be async-status between cd-gpio and result of CMD13 according to sd-slot-structure.
-	 */
-	if(!mmc_cd_get_status(host))
-	{
-		err = _mmc_detect_card_removed(host);
-		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
-		       __func__, mmc_hostname(host), err);
-	}
-
-#else
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
 		err = mmc_send_status(host->card, NULL);
@@ -1213,13 +1220,12 @@ static void mmc_sd_detect(struct mmc_host *host)
 		break;
 	}
 	if (!retries) {
-		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
+        printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
 		       __func__, mmc_hostname(host), err);
 		err = _mmc_detect_card_removed(host);
 	}
 #else
 	err = _mmc_detect_card_removed(host);
-#endif
 #endif
 
 	mmc_release_host(host);
@@ -1287,18 +1293,18 @@ static int mmc_sd_resume(struct mmc_host *host)
 		err = mmc_sd_init_card(host, host->ocr, host->card);
 
 		#ifdef CONFIG_MACH_LGE
-			/* LGE_CHANGE
-			* Skip below When ENOMEDIUM
-			* 2013-03-09, G2-FS@lge.com
-			*/
+			/*           
+                              
+                                  
+   */
 			if (err == -ENOMEDIUM) {
-				printk(KERN_INFO "[LGE][MMC][%-18s( )] error:ENOMEDIUM\n", __func__);
+                pr_info("[LGE][MMC][%-18s( )] error:ENOMEDIUM\n", __func__);
 				break;
 			}
 		#endif
 
 		if (err) {
-			printk(KERN_ERR "%s: Re-init card rc = %d (retries = %d)\n",
+            printk(KERN_ERR "%s: Re-init card rc = %d (retries = %d)\n",
 			       mmc_hostname(host), err, retries);
 			retries--;
 			mmc_power_off(host);
@@ -1447,17 +1453,21 @@ int mmc_attach_sd(struct mmc_host *host)
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	retries = 5;
-	while (retries) {
+	/*
+	 * Some bad cards may take a long time to init, give preference to
+	 * suspend in those cases.
+	 */
+	while (retries && !host->rescan_disable) {
 		err = mmc_sd_init_card(host, host->ocr, NULL);
 
 		#ifdef CONFIG_MACH_LGE
-		/* LGE_CHANGE
-		* Skip below When ENOMEDIUM
-		* 2013-07-16, G2-FS@lge.com
-		*/
+		/*           
+                             
+                                 
+  */
 		if (err == -ENOMEDIUM) {
-			printk(KERN_INFO "[LGE][MMC][%-18s( )] error:ENOMEDIUM\n", __func__);
-			retries=0;
+            pr_info("[LGE][MMC][%-18s( )] error:ENOMEDIUM\n", __func__);
+			retries = 0;
 			break;
 		}
 		#endif
@@ -1474,10 +1484,13 @@ int mmc_attach_sd(struct mmc_host *host)
 	}
 
 	if (!retries) {
-		printk(KERN_ERR "%s: mmc_sd_init_card() failure (err = %d)\n",
+        printk(KERN_ERR "%s: mmc_sd_init_card() failure (err = %d)\n",
 		       mmc_hostname(host), err);
 		goto err;
 	}
+
+	if (host->rescan_disable)
+		goto err;
 #else
 	err = mmc_sd_init_card(host, host->ocr, NULL);
 	if (err)
@@ -1501,9 +1514,9 @@ remove_card:
 	mmc_claim_host(host);
 err:
 	mmc_detach_bus(host);
-
-	pr_err("%s: error %d whilst initialising SD card\n",
-		mmc_hostname(host), err);
+	if (err)
+		pr_err("%s: error %d whilst initialising SD card: rescan: %d\n",
+		       mmc_hostname(host), err, host->rescan_disable);
 
 	return err;
 }

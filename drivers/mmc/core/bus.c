@@ -410,10 +410,10 @@ int mmc_add_card(struct mmc_card *card)
 	}
 
 #ifdef CONFIG_MACH_LGE
-	/* LGE_CHANGE
-	* Adding Print
-	* 2013/03/06, G2-FS@lge.com
-	*/
+	/*           
+                                      
+                                 
+  */
 	printk(KERN_INFO "[LGE][MMC][%-18s( )] mmc_hostname:%s, type:%s\n", __func__, mmc_hostname(card->host), type);
 #endif
 
@@ -422,22 +422,26 @@ int mmc_add_card(struct mmc_card *card)
 #endif
 	mmc_init_context_info(card->host);
 
-	if (mmc_use_core_runtime_pm(card->host)) {
-		ret = pm_runtime_set_active(&card->dev);
-		if (ret)
-			pr_err("%s: %s: failed setting runtime active: ret: %d\n",
-			       mmc_hostname(card->host), __func__, ret);
-		else if (!mmc_card_sdio(card))
-			pm_runtime_enable(&card->dev);
-	}
+	ret = pm_runtime_set_active(&card->dev);
+	if (ret)
+		pr_err("%s: %s: failed setting runtime active: ret: %d\n",
+		       mmc_hostname(card->host), __func__, ret);
+	else if (!mmc_card_sdio(card) && mmc_use_core_runtime_pm(card->host))
+		pm_runtime_enable(&card->dev);
 
+	if (mmc_card_sdio(card)) {
+		ret = device_init_wakeup(&card->dev, true);
+		if (ret)
+			pr_err("%s: %s: failed to init wakeup: %d\n",
+			       mmc_hostname(card->host), __func__, ret);
+	}
 	ret = device_add(&card->dev);
 
 #ifdef CONFIG_MACH_LGE
-	/* LGE_CHANGE
-	* Adding Print
-	* 2013/03/06, G2-FS@lge.com
-	*/
+	/*           
+                                      
+                                 
+  */
 	if (ret) {
 		printk(KERN_INFO "[LGE][MMC][%-18s( )] device_add & uevent posting fail!, ret:%d \n", __func__, ret);
 		return ret;
@@ -449,6 +453,7 @@ int mmc_add_card(struct mmc_card *card)
 		return ret;
 #endif
 
+	device_enable_async_suspend(&card->dev);
 	if (mmc_use_core_runtime_pm(card->host) && !mmc_card_sdio(card)) {
 		card->rpm_attrib.show = show_rpm_delay;
 		card->rpm_attrib.store = store_rpm_delay;
@@ -491,6 +496,7 @@ void mmc_remove_card(struct mmc_card *card)
 	}
 
 	kfree(card->wr_pack_stats.packing_events);
+	kfree(card->cached_ext_csd);
 
 	put_device(&card->dev);
 }
