@@ -197,8 +197,37 @@ struct mmc_hotplug {
 	void *handler_priv;
 };
 
-#ifdef CONFIG_MACH_LGE
+enum dev_state {
+	DEV_SUSPENDING = 1,
+	DEV_SUSPENDED,
+	DEV_RESUMED,
+};
+
+ #ifdef CONFIG_MACH_LGE
+/*                                          
+                                  
+ */
 extern int mmc_cd_get_status(struct mmc_host *host);
+#endif
+
+#ifdef CONFIG_MACH_LGE
+/*           
+                                                
+                                
+ */
+enum mmc_host_driver_index {
+	MMC_HOST_DRIVER_INDEX_MMC0 = 0,
+	MMC_HOST_DRIVER_INDEX_MMC1,
+	MMC_HOST_DRIVER_INDEX_MMC2,
+	MMC_HOST_DRIVER_INDEX_MMC3
+};
+
+enum mmc_sdcc_controller_index {
+	MMC_SDCC_CONTROLLER_INDEX_SDCC1 = 1,
+	MMC_SDCC_CONTROLLER_INDEX_SDCC2,
+	MMC_SDCC_CONTROLLER_INDEX_SDCC3,
+	MMC_SDCC_CONTROLLER_INDEX_SDCC4
+};
 #endif
 
 struct mmc_host {
@@ -304,6 +333,7 @@ struct mmc_host {
 
 #define MMC_CAP2_HS400_1_8V	(1 << 21)        /* can support */
 #define MMC_CAP2_HS400_1_2V	(1 << 22)        /* can support */
+#define MMC_CAP2_CORE_PM	(1 << 23)       /* use PM framework */
 #define MMC_CAP2_HS400		(MMC_CAP2_HS400_1_8V | \
 				 MMC_CAP2_HS400_1_2V)
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
@@ -421,9 +451,12 @@ struct mmc_host {
 		bool		enable;
 		bool		initialized;
 		bool		in_progress;
+		/* freq. transitions are not allowed in invalid state */
+		bool		invalid_state;
 		struct delayed_work work;
 		enum mmc_load	state;
 	} clk_scaling;
+	enum dev_state dev_status;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -574,6 +607,11 @@ static inline unsigned int mmc_host_clk_rate(struct mmc_host *host)
 static inline int mmc_use_core_runtime_pm(struct mmc_host *host)
 {
 	return host->caps2 & MMC_CAP2_CORE_RUNTIME_PM;
+}
+
+static inline int mmc_use_core_pm(struct mmc_host *host)
+{
+	return host->caps2 & MMC_CAP2_CORE_PM;
 }
 
 #endif /* LINUX_MMC_HOST_H */

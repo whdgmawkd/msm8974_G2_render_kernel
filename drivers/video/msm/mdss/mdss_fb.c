@@ -1130,7 +1130,7 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 #if defined(CONFIG_MACH_LGE) && !defined(CONFIG_MACH_MSM8974_Z_KR) && !defined(CONFIG_MACH_MSM8974_Z_US) && !defined(CONFIG_OLED_SUPPORT)
 	 /* to hide blinking screen when system reset */
 	 if (mfd->index==0 && backlight_status==1){
-			bl_updated = 1;
+			// bl_updated = 1; ignore undecleared.
 			mutex_lock(&mfd->bl_lock);
 			mdss_fb_set_backlight(mfd, 0);
 			mutex_unlock(&mfd->bl_lock);
