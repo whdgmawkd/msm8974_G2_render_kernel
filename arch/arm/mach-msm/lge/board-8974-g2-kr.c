@@ -241,9 +241,9 @@ void __init msm8974_add_drivers(void)
 	lge_add_lge_kernel_devices();
 #endif
 /* LGE_CHANGE_S, [WiFi][hayun.kim@lge.com], 2013-01-22, Wifi Bring Up */
-#if defined (CONFIG_BCMDHD) || defined (CONFIG_BCMDHD_MODULE)
+/* #if defined (CONFIG_BCMDHD) || defined (CONFIG_BCMDHD_MODULE)
 	init_bcm_wifi();
-#endif
+#endif */
 /* LGE_CHANGE_E, [WiFi][hayun.kim@lge.com], 2013-01-22, Wifi Bring Up */
 #if defined(CONFIG_LCD_KCAL)
 /* LGE_CHANGE_S
